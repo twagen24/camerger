@@ -1,7 +1,8 @@
 import datetime
+import locale
 import os
 import re
-from moviepy.editor import VideoFileClip, concatenate_videoclips
+from moviepy.editor import *
 
 VIDEOS_LOCATION = 'C:/Users/Thomas/Desktop/Temp/Heuernte Obernparz 2005/'
 VIDEOS_NAME = 'Kassette 3'
@@ -14,6 +15,8 @@ AUDIO_CODEC = 'aac'
 AUDIO_FPS = 32000
 AUDIO_BITRATE = '1024k'
 FFMPEG_PARAMS = ['-vf', 'yadif']
+SCREEN_SIZE = (720, 576)
+locale.setlocale(locale.LC_ALL, 'de_AT.utf8')
 
 
 def main():
@@ -39,16 +42,16 @@ def get_all_videos() -> []:
     return videos
 
 
-def extract_date(file_name):
+def extract_date(file_name: str):
     # print('Parsing date out of file \"' + file_name + '\".')
     date = re.search(VIDEO_FILE_REGEX, file_name)
     return date.group(1)
 
 
-def merge_video_parts(video_parts):
-    video_date = get_date_object(extract_date(video_parts[0])).date()
+def merge_video_parts(video_parts: []):
+    video_date = get_date_object(extract_date(video_parts[0]))
     print('\nCreating video \"' + str(video_date) + '.avi\", consisting of ' + str(len(video_parts)) + ' sub-video(s):')
-    video_file_clips = []
+    video_file_clips = [create_intro(video_date, '')]  # TODO: read description-files
     for i in video_parts:
         video_file_clips.append(VideoFileClip(VIDEOS_LOCATION + i))
     same_day_video = concatenate_videoclips(video_file_clips)
@@ -64,8 +67,30 @@ def merge_video_parts(video_parts):
                                    )
 
 
-def get_date_object(date) -> datetime:
-    return datetime.datetime.strptime(date, '%y-%m-%d')
+def get_date_object(date: str) -> datetime:
+    return datetime.datetime.strptime(date, '%y-%m-%d').date()
+
+
+def create_intro(date: datetime, headline: str):
+    date_formatted = date.strftime('%d. %B %Y')
+    if headline == '':
+        headline = date_formatted
+    else:
+        headline = date_formatted + '\n' + headline
+    print('\nCreating intro \"' + headline + '\".')
+    txt_clip = TextClip(headline,
+                        font='MinionPro-Regular',
+                        fontsize=48, color='black',
+                        bg_color='white',
+                        size=SCREEN_SIZE)
+    intro = CompositeVideoClip([txt_clip])
+    intro_file_name = VIDEOS_LOCATION + str(date) + '-intro.mp4'
+    intro.subclip(0, 3) \
+        .write_videofile(intro_file_name,
+                         fps=VIDEO_FPS,
+                         codec=VIDEO_CODEC,
+                         bitrate=VIDEO_BITRATE)
+    return VideoFileClip(intro_file_name)
 
 
 main()
