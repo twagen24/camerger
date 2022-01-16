@@ -1,11 +1,12 @@
 import datetime
 import locale
-import os
+import csv
 import re
 from moviepy.editor import *
 
-VIDEOS_LOCATION = 'C:/Users/Thomas/Desktop/Temp/Heuernte Obernparz 2005/'
-VIDEOS_NAME = 'Kassette 3'
+VIDEOS_LOCATION = 'D:/raw/Kassette 1/'
+DESCRIPTIONS_FILE_NAME = VIDEOS_LOCATION + 'Kassette 1.csv'
+descriptions_map = {}
 
 VIDEO_FILE_REGEX = '.+\.(\d{2}-\d{2}-\d{2})_\d{2}-\d{2}\.\d{2}\.avi'
 VIDEO_CODEC = 'libx264'
@@ -20,6 +21,7 @@ locale.setlocale(locale.LC_ALL, 'de_AT.utf8')
 
 
 def main():
+    read_descriptions()
     videos = get_all_videos()
     same_day_videos = []
     last_video_date = extract_date(videos[0])
@@ -48,14 +50,26 @@ def extract_date(file_name: str):
     return date.group(1)
 
 
+# reads csv-files per line where each date may or may not have a corresponding headline;
+# linebreaks are realized by using the $-symbol within that file
+def read_descriptions():
+    with open(DESCRIPTIONS_FILE_NAME, encoding='utf8') as descriptions:
+        reader = csv.reader(descriptions, delimiter=';')
+        for line in enumerate(reader):
+            descriptions_map[line[1][0]] = line[1][1].replace('$', '\n')
+
+
 def merge_video_parts(video_parts: []):
     video_date = get_date_object(extract_date(video_parts[0]))
     print('\nCreating video \"' + str(video_date) + '.avi\", consisting of ' + str(len(video_parts)) + ' sub-video(s):')
-    video_file_clips = [create_intro(video_date, '')]  # TODO: read description-files
+    headline = ''
+    if str(video_date) in descriptions_map:
+        headline = descriptions_map[str(video_date)]
+    video_file_clips = [create_intro(video_date, headline)]
     for i in video_parts:
         video_file_clips.append(VideoFileClip(VIDEOS_LOCATION + i))
     same_day_video = concatenate_videoclips(video_file_clips)
-    same_day_video.write_videofile(VIDEOS_LOCATION + str(video_date) + '.mp4',
+    same_day_video.write_videofile(VIDEOS_LOCATION + str(video_date) + '_' + get_allowed_filename(headline) + '.mp4',
                                    codec=VIDEO_CODEC,
                                    audio_codec=AUDIO_CODEC,
                                    # fps=VIDEO_FPS,
@@ -65,6 +79,11 @@ def merge_video_parts(video_parts: []):
                                    ffmpeg_params=FFMPEG_PARAMS,
                                    # write_logfile=True
                                    )
+
+
+def get_allowed_filename(val: str) -> str:
+    val = val.replace('\n', ' ')
+    return val.translate({ord(i): None for i in '<>:"/\\|?*'})
 
 
 def get_date_object(date: str) -> datetime:
